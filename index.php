@@ -1,3 +1,53 @@
+<?php
+require "configs/db.php";
+
+$register_error = "";
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["register"])) {
+  $fullname = trim($_POST["fullname"] ?? "");
+  $email = trim($_POST["email"] ?? "");
+  $password = $_POST["password"] ?? "";
+  $confirm_password = $_POST["confirm_password"] ?? "";
+  $terms_accepted = isset($_POST["terms"]);
+
+  if ($fullname === "" || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $register_error = "กรุณากรอกชื่อและอีเมลให้ถูกต้อง";
+  } elseif (strlen($password) < 8) {
+    $register_error = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
+  } elseif ($password !== $confirm_password) {
+    $register_error = "รหัสผ่านไม่ตรงกัน";
+  } elseif (!$terms_accepted) {
+    $register_error = "กรุณายอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว";
+  } else {
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = $conn->prepare(
+      "INSERT INTO users (fullname, email, password) VALUES (:fullname, :email, :password)"
+    );
+
+    try {
+      $stmt->execute([
+        ":fullname" => $fullname,
+        ":email" => $email,
+        ":password" => $hashed_password,
+      ]);
+
+      header("Location: home.php");
+      exit;
+    } catch (PDOException $e) {
+      if ($e->getCode() === "23000") {
+        $register_error = "อีเมลนี้ถูกใช้งานแล้ว";
+      } else {
+        error_log($e->getMessage());
+        $register_error = "เกิดข้อผิดพลาดในการสมัครสมาชิก กรุณาลองอีกครั้ง";
+      }
+    }
+  }
+}
+?>
+
+
+
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -286,6 +336,16 @@
       text-align: center;
     }
 
+    .form-error {
+      margin: 0 0 18px;
+      padding: 10px 12px;
+      border: 1px solid #e8c9c3;
+      border-radius: 5px;
+      background: #fff6f4;
+      color: #963f32;
+      font-size: 13px;
+    }
+
     @keyframes image-arrive {
       from { transform: scale(1.035); opacity: .7; }
       to { transform: scale(1); opacity: 1; }
@@ -388,6 +448,10 @@
           <p>สมัครสมาชิกเพื่อเริ่มต้นเลือกชิ้นโปรดของคุณ</p>
         </header>
 
+        <?php if ($register_error !== ""): ?>
+          <p class="form-error" role="alert"><?= htmlspecialchars($register_error, ENT_QUOTES, "UTF-8") ?></p>
+        <?php endif; ?>
+
         <form id="register-form" action="#" method="post">
           <div class="field">
             <label for="full-name">ชื่อ-นามสกุล</label>
@@ -415,7 +479,7 @@
             <span>ฉันยอมรับ <a href="#terms">เงื่อนไขการใช้งาน</a> และ <a href="#privacy">นโยบายความเป็นส่วนตัว</a></span>
           </label>
 
-          <button class="submit-button" type="submit">สร้างบัญชี <span aria-hidden="true">&#8594;</span></button>
+          <button class="submit-button" name="register" type="submit">สร้างบัญชี <span aria-hidden="true">&#8594;</span></button>
           <p class="form-note">ข้อมูลของคุณจะถูกเก็บรักษาอย่างปลอดภัย</p>
         </form>
       </div>
@@ -439,9 +503,13 @@
     });
 
     registerForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      confirmInput.dispatchEvent(new Event("input"));
-      if (!registerForm.reportValidity()) return;
+      confirmInput.setCustomValidity(
+        confirmInput.value !== passwordInput.value ? "รหัสผ่านไม่ตรงกัน" : ""
+      );
+      if (!registerForm.checkValidity()) {
+        event.preventDefault();
+        registerForm.reportValidity();
+      }
     });
   </script>
 </body>
