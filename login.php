@@ -4,15 +4,27 @@ session_start();
 require_once 'configs/db.php';
 
 if(isset($_POST['login'])) {
-    $username = $_POST['username'];
+    $email = $_POST['email'];
     $password = $_POST['password'];
+    
+    $sql = "SELECT * FROM users WHERE email = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$email]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $sql = "SELECT * FROM users"
+    if($user && password_verify($password, $user['password'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        header("Location: home.php");
+        exit();
+    } else {
+        echo "<script>alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');</script>";
+    }
     
 }
-   
 
 ?>
+
 
 
 <!DOCTYPE html>
@@ -33,8 +45,8 @@ if(isset($_POST['login'])) {
             <div class="form-login p-4">
                 <form action="login.php" class="form" method="post">
                     <div class="form-group">
-                        <label for="username" class="form-label">ชื่อผู้ใช้</label>
-                        <input type="text" class="form-control" name="username">
+                        <label for="email" class="form-label">อีเมล</label>
+                        <input type="email" class="form-control" name="email">
                     </div>
                      <div class="form-group">
                         <label for="password" class="form-label">รหัสผ่าน</label>
